@@ -1,15 +1,12 @@
-python-multipart
 fastapi==0.110.0
 uvicorn==0.29.0
+python-multipart
 
-langchain==0.0.208
-pydantic==1.10.12
-
+opencv-python
 torch
-transformers==4.36.2
-sentence-transformers==2.2.2
+transformers
+sentence-transformers
 faiss-cpu
 
 inference-sdk==0.9.16
-opencv-python
-pypdf
+pydantic==1.10.12
