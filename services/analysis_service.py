@@ -1,22 +1,36 @@
-@app.post("/analyze-palm")
-async def analyze_palm(image: UploadFile = File(...)):
-    try:
-        image_path = os.path.join(TEMP_DIR, image.filename)
+def generate_analysis(predictions):
+    if not predictions:
+        return "No palm lines detected clearly."
 
-        with open(image_path, "wb") as buffer:
-            shutil.copyfileobj(image.file, buffer)
+    line_strengths = []
 
-        predictions = detect_palm_lines(image_path)
-        analysis = generate_analysis(predictions)
+    for p in predictions:
+        cls = p.get("class")
+        conf = p.get("confidence", 0)
 
-        return {
-            "predictions": predictions,
-            "analysis": analysis
-        }
+        if cls not in ["life", "heart", "head", "fate"]:
+            continue
 
-    except Exception as e:
-        print("❌ BACKEND CRASH PREVENTED:", e)
-        return {
-            "predictions": [],
-            "analysis": "Server error handled safely."
-        }
+        if conf >= 0.7:
+            strength = "Strong"
+        elif conf >= 0.4:
+            strength = "Moderate"
+        else:
+            strength = "Weak"
+
+        line_strengths.append(f"{cls.capitalize()} Line: {strength}")
+
+    if not line_strengths:
+        return "Palm lines not clear enough for analysis."
+
+    summary = ", ".join(line_strengths)
+
+    return (
+        "Palm Analysis Summary:\n"
+        f"{summary}\n\n"
+        "Future Guidance:\n"
+        "- Strong lines indicate stability and confidence in life decisions.\n"
+        "- Moderate lines suggest adaptability and gradual growth.\n"
+        "- Weak lines indicate areas where extra effort and awareness are needed.\n\n"
+        "This analysis reflects life tendencies, not fixed outcomes."
+    )
