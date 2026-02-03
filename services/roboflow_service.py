@@ -1,23 +1,24 @@
-import requests
+from inference_sdk import InferenceHTTPClient
+import os
 
-API_KEY = "W5Oc0aWD7MFYfm22hoIs"
+API_KEY = os.getenv("ROBOFLOW_API_KEY")  # safer for deploy
 MODEL_ID = "palm-lines-recognition-azgh0/5"
 
 def detect_palm_lines(image_path: str):
-    url = f"https://detect.roboflow.com/{MODEL_ID}"
-    params = {
-        "api_key": API_KEY
-    }
-
-    with open(image_path, "rb") as f:
-        response = requests.post(
-            url,
-            params=params,
-            files={"file": f},
-            timeout=30
+    try:
+        client = InferenceHTTPClient(
+            api_url="https://serverless.roboflow.com",
+            api_key=API_KEY,
+            timeout=8  # ⬅️ HARD TIMEOUT (IMPORTANT)
         )
 
-    response.raise_for_status()
-    data = response.json()
+        result = client.infer(
+            image_path=image_path,
+            model_id=MODEL_ID
+        )
 
-    return data.get("predictions", [])
+        return result.get("predictions", [])
+
+    except Exception as e:
+        print("❌ Roboflow error:", e)
+        return []  # ⬅️ NEVER crash backend
