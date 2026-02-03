@@ -11,26 +11,24 @@ def generate_analysis(predictions):
         if cls not in ["life", "heart", "head", "fate"]:
             continue
 
-        if conf >= 0.7:
+        # 🔥 FIXED THRESHOLDS
+        if conf >= 0.45:
             strength = "Strong"
-        elif conf >= 0.4:
+        elif conf >= 0.25:
             strength = "Moderate"
         else:
             strength = "Weak"
 
-        line_strengths.append(f"{cls.capitalize()} Line: {strength}")
+        line_strengths.append({
+            "name": cls,
+            "strength": strength,
+            "x": p["x"],   # DO NOT CHANGE
+            "y": p["y"]    # DO NOT CHANGE
+        })
 
     if not line_strengths:
         return "Palm lines not clear enough for analysis."
 
-    summary = ", ".join(line_strengths)
-
-    return (
-        "Palm Analysis Summary:\n"
-        f"{summary}\n\n"
-        "Future Guidance:\n"
-        "- Strong lines indicate stability and confidence in life decisions.\n"
-        "- Moderate lines suggest adaptability and gradual growth.\n"
-        "- Weak lines indicate areas where extra effort and awareness are needed.\n\n"
-        "This analysis reflects life tendencies, not fixed outcomes."
-    )
+    return {
+        "lines": line_strengths
+    }
