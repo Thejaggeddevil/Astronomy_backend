@@ -2,6 +2,8 @@ from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 import os, uuid, shutil
+import cv2
+
 
 from services.palm_cv_service import detect_palm_lines_cv
 
