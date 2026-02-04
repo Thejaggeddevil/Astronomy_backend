@@ -9,6 +9,14 @@ def resize_keep_aspect(img, max_size=900):
     scale = max_size / max(h, w)
     return cv2.resize(img, (int(w * scale), int(h * scale)))
 
+dimport cv2
+import numpy as np
+
+def resize_keep_aspect(img, max_size=900):
+    h, w = img.shape[:2]
+    scale = max_size / max(h, w)
+    return cv2.resize(img, (int(w * scale), int(h * scale)))
+
 def detect_palm_lines_cv(image_path: str):
     img = cv2.imread(image_path)
     if img is None:
@@ -17,34 +25,48 @@ def detect_palm_lines_cv(image_path: str):
     img = resize_keep_aspect(img)
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    # 1️⃣ Enhance contrast
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    gray = clahe.apply(gray)
+
+    # 2️⃣ Blur skin noise
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
 
-    thresh = cv2.adaptiveThreshold(
-        blurred,
-        255,
-        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY_INV,
-        11,
-        2
-    )
+    # 3️⃣ Edge detection (lighter thresholds)
+    edges = cv2.Canny(blurred, 30, 90)
 
-    edges = cv2.Canny(thresh, 50, 150)
-    edges = cv2.medianBlur(edges, 5)
+    # 4️⃣ Morphological thinning (connect broken lines)
+    kernel = np.ones((2, 2), np.uint8)
+    edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel, iterations=2)
 
-    kernel = np.ones((3, 3), np.uint8)
-    edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
+    # 5️⃣ Skeletonize (THIS IS THE KEY STEP)
+    skel = np.zeros(edges.shape, np.uint8)
+    element = cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3))
 
+    while True:
+        open_ = cv2.morphologyEx(edges, cv2.MORPH_OPEN, element)
+        temp = cv2.subtract(edges, open_)
+        eroded = cv2.erode(edges, element)
+        skel = cv2.bitwise_or(skel, temp)
+        edges = eroded.copy()
+        if cv2.countNonZero(edges) == 0:
+            break
+
+    # 6️⃣ Find contours on skeleton
     contours, _ = cv2.findContours(
-        edges,
+        skel,
         cv2.RETR_EXTERNAL,
-        cv2.CHAIN_APPROX_SIMPLE
+        cv2.CHAIN_APPROX_NONE
     )
 
     drawn = img.copy()
 
     for cnt in contours:
         length = cv2.arcLength(cnt, False)
-        if length < 140:
+
+        # MUCH LOWER threshold (palm lines are thin)
+        if length < 60:
             continue
 
         cv2.drawContours(drawn, [cnt], -1, (0, 255, 0), 2)
