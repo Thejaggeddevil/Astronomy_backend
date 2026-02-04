@@ -1,20 +1,15 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-import shutil
-import os
-import uuid
 from fastapi.responses import FileResponse
-from services.draw_service import draw_predictions
+import os, uuid, shutil
 
-from services.roboflow_service import detect_palm_lines
-from services.analysis_service import analyze_lines
+from services.palm_cv_service import detect_palm_lines_cv
 
-app = FastAPI(title="Palmistry Backend")
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -22,29 +17,20 @@ app.add_middleware(
 TEMP_DIR = "temp"
 os.makedirs(TEMP_DIR, exist_ok=True)
 
-
-@app.get("/")
-def health():
-    return {"status": "ok"}
-
-
 @app.post("/analyze-palm")
 async def analyze_palm(image: UploadFile = File(...)):
-    filename = f"{uuid.uuid4()}_{image.filename}"
+    filename = f"{uuid.uuid4()}.jpg"
     image_path = os.path.join(TEMP_DIR, filename)
 
-    with open(image_path, "wb") as buffer:
-        shutil.copyfileobj(image.file, buffer)
+    with open(image_path, "wb") as f:
+        shutil.copyfileobj(image.file, f)
 
-    predictions = detect_palm_lines(image_path)
-    analysis = analyze_lines(predictions)
+    output_img = detect_palm_lines_cv(image_path)
 
-    output_image = draw_predictions(image_path, predictions)
+    out_path = image_path.replace(".jpg", "_out.jpg")
+    cv2.imwrite(out_path, output_img)
 
     return FileResponse(
-        output_image,
-        media_type="image/jpeg",
-        headers={
-            "X-Analysis": str(analysis)
-        }
+        out_path,
+        media_type="image/jpeg"
     )
