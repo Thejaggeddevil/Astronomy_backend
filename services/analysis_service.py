@@ -1,34 +1,44 @@
-def generate_analysis(predictions):
+def analyze_lines(predictions: list):
     if not predictions:
-        return "No palm lines detected clearly."
+        return {
+            "message": "Palm lines not detected clearly",
+            "lines": []
+        }
 
-    line_strengths = []
+    summary = []
+    score = 0
 
     for p in predictions:
-        cls = p.get("class")
-        conf = p.get("confidence", 0)
+        line = p.get("class")
+        confidence = p.get("confidence", 0)
 
-        if cls not in ["life", "heart", "head", "fate"]:
+        if line not in ["life", "heart", "head", "fate"]:
             continue
 
-        # 🔥 FIXED THRESHOLDS
-        if conf >= 0.45:
-            strength = "Strong"
-        elif conf >= 0.25:
-            strength = "Moderate"
+        if confidence >= 0.5:
+            strength = "strong"
+            score += 2
+        elif confidence >= 0.3:
+            strength = "moderate"
+            score += 1
         else:
-            strength = "Weak"
+            strength = "weak"
 
-        line_strengths.append({
-            "name": cls,
+        summary.append({
+            "line": line,
             "strength": strength,
-            "x": p["x"],   # DO NOT CHANGE
-            "y": p["y"]    # DO NOT CHANGE
+            "confidence": round(confidence, 2),
+            "x": p["x"],
+            "y": p["y"]
         })
 
-    if not line_strengths:
-        return "Palm lines not clear enough for analysis."
+    outlook = (
+        "Very positive signs" if score >= 6 else
+        "Balanced life indications" if score >= 3 else
+        "Unclear or developing traits"
+    )
 
     return {
-        "lines": line_strengths
+        "outlook": outlook,
+        "lines": summary
     }

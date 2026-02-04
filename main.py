@@ -1,17 +1,19 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 import shutil
 import os
 import uuid
+from fastapi.responses import FileResponse
+from services.draw_service import draw_predictions
 
 from services.roboflow_service import detect_palm_lines
-from services.analysis_service import generate_analysis
+from services.analysis_service import analyze_lines
 
 app = FastAPI(title="Palmistry Backend")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # restrict later
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -28,23 +30,21 @@ def health():
 
 @app.post("/analyze-palm")
 async def analyze_palm(image: UploadFile = File(...)):
-    try:
-        image_path = os.path.join(TEMP_DIR, image.filename)
+    filename = f"{uuid.uuid4()}_{image.filename}"
+    image_path = os.path.join(TEMP_DIR, filename)
 
-        with open(image_path, "wb") as buffer:
-            shutil.copyfileobj(image.file, buffer)
+    with open(image_path, "wb") as buffer:
+        shutil.copyfileobj(image.file, buffer)
 
-        predictions = detect_palm_lines(image_path)
-        analysis = generate_analysis(predictions)
+    predictions = detect_palm_lines(image_path)
+    analysis = analyze_lines(predictions)
 
-        return {
-            "predictions": predictions,
-            "analysis": analysis
+    output_image = draw_predictions(image_path, predictions)
+
+    return FileResponse(
+        output_image,
+        media_type="image/jpeg",
+        headers={
+            "X-Analysis": str(analysis)
         }
-
-    except Exception as e:
-        print("❌ BACKEND CRASH PREVENTED:", e)
-        return {
-            "predictions": [],
-            "analysis": "Server error handled safely."
-        }
+    )
