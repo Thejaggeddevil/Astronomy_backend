@@ -1,36 +1,71 @@
 from fastapi import FastAPI, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-import os
-import uuid
-import shutil
+from fastapi.responses import JSONResponse
+import torch
 import cv2
-
-from services.palm_cv_service import detect_palm_lines_cv
+import numpy as np
+from PIL import Image
+import io
 
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# -------- LOAD MODEL ONCE --------
+MODEL_PATH = "palmdetector.pt"  # use ONE, not both
+device = "cpu"
 
-TEMP_DIR = "temp"
-os.makedirs(TEMP_DIR, exist_ok=True)
+model = torch.load(MODEL_PATH, map_location=device)
+model.eval()
 
+LABEL_MAP = {
+    0: "life",
+    1: "head",
+    2: "heart"
+}
+
+# -------- HELPERS --------
+def preprocess(img: np.ndarray):
+    img = cv2.resize(img, (640, 640))
+    img = img / 255.0
+    img = torch.tensor(img, dtype=torch.float32).permute(2, 0, 1).unsqueeze(0)
+    return img
+
+def mask_center(mask: np.ndarray):
+    ys, xs = np.where(mask > 0.5)
+    if len(xs) == 0:
+        return None
+    return float(xs.mean()), float(ys.mean())
+
+# -------- API --------
 @app.post("/analyze-palm")
 async def analyze_palm(image: UploadFile = File(...)):
-    filename = f"{uuid.uuid4()}.jpg"
-    in_path = os.path.join(TEMP_DIR, filename)
+    data = await image.read()
+    img = Image.open(io.BytesIO(data)).convert("RGB")
+    img = np.array(img)
 
-    with open(in_path, "wb") as f:
-        shutil.copyfileobj(image.file, f)
+    inp = preprocess(img)
 
-    output_img = detect_palm_lines_cv(in_path)
+    with torch.no_grad():
+        output = model(inp)
 
-    out_path = in_path.replace(".jpg", "_out.jpg")
-    cv2.imwrite(out_path, output_img)
+    results = []
 
-    return FileResponse(out_path, media_type="image/jpeg")
+    # 🔴 THIS PART DEPENDS ON MODEL TYPE
+    # assuming segmentation-style output
+    masks = output["masks"] if isinstance(output, dict) else output
+
+    h, w = img.shape[:2]
+
+    for idx, mask in enumerate(masks[:3]):  # only top 3
+        mask = mask.squeeze().cpu().numpy()
+        center = mask_center(mask)
+        if not center:
+            continue
+
+        cx, cy = center
+        results.append({
+            "label": LABEL_MAP.get(idx, "unknown"),
+            "confidence": float(mask.max()),
+            "x": cx / mask.shape[1],
+            "y": cy / mask.shape[0]
+        })
+
+    return JSONResponse({"lines": results})

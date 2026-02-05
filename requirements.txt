@@ -11,3 +11,8 @@ inference-sdk==0.9.16
 pydantic==1.10.12
 opencv-python-headless
 numpy
+
+torchvision
+
+pillow
+python-multipart
