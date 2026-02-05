@@ -1,71 +1,57 @@
 from fastapi import FastAPI, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import torch
-import cv2
-import numpy as np
-from PIL import Image
-import io
+import os, uuid, shutil
 
-app = FastAPI()
+from services.roboflow_service import detect_palm_lines
 
-# -------- LOAD MODEL ONCE --------
-MODEL_PATH = "palmdetector.pt"  # use ONE, not both
-device = "cpu"
+app = FastAPI(title="Palm Line Backend")
 
-model = torch.load(MODEL_PATH, map_location=device)
-model.eval()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-LABEL_MAP = {
-    0: "life",
-    1: "head",
-    2: "heart"
-}
+TEMP_DIR = "temp"
+os.makedirs(TEMP_DIR, exist_ok=True)
 
-# -------- HELPERS --------
-def preprocess(img: np.ndarray):
-    img = cv2.resize(img, (640, 640))
-    img = img / 255.0
-    img = torch.tensor(img, dtype=torch.float32).permute(2, 0, 1).unsqueeze(0)
-    return img
+@app.get("/")
+def health():
+    return {"status": "ok"}
 
-def mask_center(mask: np.ndarray):
-    ys, xs = np.where(mask > 0.5)
-    if len(xs) == 0:
-        return None
-    return float(xs.mean()), float(ys.mean())
-
-# -------- API --------
 @app.post("/analyze-palm")
 async def analyze_palm(image: UploadFile = File(...)):
-    data = await image.read()
-    img = Image.open(io.BytesIO(data)).convert("RGB")
-    img = np.array(img)
+    filename = f"{uuid.uuid4()}.jpg"
+    path = os.path.join(TEMP_DIR, filename)
 
-    inp = preprocess(img)
+    with open(path, "wb") as f:
+        shutil.copyfileobj(image.file, f)
 
-    with torch.no_grad():
-        output = model(inp)
+    try:
+        predictions = detect_palm_lines(path)
 
-    results = []
+        # 🔥 Ye JSON Android ke liye hai
+        lines = []
+        for p in predictions:
+            lines.append({
+                "label": p.get("class"),          # heart / life / head
+                "confidence": round(p.get("confidence", 0), 2),
+                "x": p.get("x"),                  # pixel X
+                "y": p.get("y")                   # pixel Y
+            })
 
-    # 🔴 THIS PART DEPENDS ON MODEL TYPE
-    # assuming segmentation-style output
-    masks = output["masks"] if isinstance(output, dict) else output
-
-    h, w = img.shape[:2]
-
-    for idx, mask in enumerate(masks[:3]):  # only top 3
-        mask = mask.squeeze().cpu().numpy()
-        center = mask_center(mask)
-        if not center:
-            continue
-
-        cx, cy = center
-        results.append({
-            "label": LABEL_MAP.get(idx, "unknown"),
-            "confidence": float(mask.max()),
-            "x": cx / mask.shape[1],
-            "y": cy / mask.shape[0]
+        return JSONResponse({
+            "lines": lines
         })
 
-    return JSONResponse({"lines": results})
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+    finally:
+        if os.path.exists(path):
+            os.remove(path)
