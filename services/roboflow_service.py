@@ -1,7 +1,8 @@
-from inference_sdk import InferenceHTTPClient
+import requests
 import os
 
 MODEL_ID = "palm-lines-recognition-azgh0/5"
+API_URL = "https://serverless.roboflow.com"
 
 def detect_palm_lines(image_path: str):
     api_key = os.getenv("ROBOFLOW_API_KEY")
@@ -9,12 +10,19 @@ def detect_palm_lines(image_path: str):
     if not api_key:
         raise RuntimeError("ROBOFLOW_API_KEY not set")
 
-    client = InferenceHTTPClient(
-        api_url="https://serverless.roboflow.com",
-        api_key=api_key
-    )
+    url = f"{API_URL}/{MODEL_ID}?api_key={api_key}"
 
-    # ✅ ONLY positional arguments — nothing else
-    result = client.infer(image_path, MODEL_ID)
+    with open(image_path, "rb") as f:
+        files = {
+            "file": f
+        }
 
-    return result.get("predictions", [])
+        response = requests.post(url, files=files)
+
+    if response.status_code != 200:
+        raise RuntimeError(
+            f"Roboflow error {response.status_code}: {response.text}"
+        )
+
+    data = response.json()
+    return data.get("predictions", [])

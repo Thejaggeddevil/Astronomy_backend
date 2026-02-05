@@ -5,7 +5,7 @@ import os, uuid, shutil
 
 from services.roboflow_service import detect_palm_lines
 
-app = FastAPI(title="Palm Line Backend")
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
@@ -32,25 +32,19 @@ async def analyze_palm(image: UploadFile = File(...)):
     try:
         predictions = detect_palm_lines(path)
 
-        # 🔥 Ye JSON Android ke liye hai
         lines = []
         for p in predictions:
             lines.append({
-                "label": p.get("class"),          # heart / life / head
+                "label": p.get("class"),
                 "confidence": round(p.get("confidence", 0), 2),
-                "x": p.get("x"),                  # pixel X
-                "y": p.get("y")                   # pixel Y
+                "x": p.get("x"),
+                "y": p.get("y")
             })
 
-        return JSONResponse({
-            "lines": lines
-        })
+        return JSONResponse({"lines": lines})
 
     except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"error": str(e)}
-        )
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
     finally:
         if os.path.exists(path):
