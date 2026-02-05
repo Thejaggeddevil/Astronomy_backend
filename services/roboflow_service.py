@@ -11,8 +11,7 @@ def detect_palm_lines(image_path: str):
 
     client = InferenceHTTPClient(
         api_url="https://serverless.roboflow.com",
-        api_key=api_key,
-        timeout=10
+        api_key=api_key
     )
 
     result = client.infer(
@@ -20,5 +19,4 @@ def detect_palm_lines(image_path: str):
         model_id=MODEL_ID
     )
 
-    # Roboflow already trained hai → yahin se labels aate hain
     return result.get("predictions", [])
