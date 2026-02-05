@@ -14,9 +14,7 @@ def detect_palm_lines(image_path: str):
         api_key=api_key
     )
 
-    result = client.infer(
-        image_path=image_path,
-        model_id=MODEL_ID
-    )
+    # ✅ ONLY positional arguments — nothing else
+    result = client.infer(image_path, MODEL_ID)
 
     return result.get("predictions", [])
