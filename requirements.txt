@@ -5,3 +5,4 @@ torchvision
 numpy
 pillow
 python-multipart
+ultralytics
