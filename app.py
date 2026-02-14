@@ -31,19 +31,20 @@ async def analyze_palm(file: UploadFile = File(...)):
     temp_filename = f"/tmp/{uuid.uuid4().hex}.jpg"
 
     try:
-        # Save uploaded image
         with open(temp_filename, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # Run model
         points = analyze_image(temp_filename)
 
         return {
-            "lines": points   # naming kept same for Android compatibility
+            "lines": points
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        print("FULL ERROR:")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Internal server error")
 
     finally:
         if os.path.exists(temp_filename):
