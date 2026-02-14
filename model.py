@@ -14,8 +14,15 @@ model = None  # DO NOT load at import time
 def get_model():
     global model
     if model is None:
-        model = YOLO(MODEL_PATH)
+        try:
+            print("Loading model...")
+            model = YOLO(MODEL_PATH)
+            print("Model loaded successfully")
+        except Exception as e:
+            print("MODEL LOAD FAILED:", repr(e))
+            raise
     return model
+
 
 
 def analyze_image(image_path: str):
