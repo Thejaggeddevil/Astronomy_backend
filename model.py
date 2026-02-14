@@ -2,7 +2,11 @@ from ultralytics import YOLO
 from PIL import Image
 from class_labels import CLASS_LABELS
 
-MODEL_PATH = "palmdetector.pt"
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, "palmdetector.pt")
+
 
 model = None  # DO NOT load at import time
 
@@ -15,9 +19,14 @@ def get_model():
 
 
 def analyze_image(image_path: str):
-    model_instance = get_model()
+    try:
+        model_instance = get_model()
+    except Exception as e:
+        print("MODEL LOAD ERROR:", e)
+        raise
 
     image = Image.open(image_path).convert("RGB")
+
     width, height = image.size
 
     results = model_instance(image)[0]
