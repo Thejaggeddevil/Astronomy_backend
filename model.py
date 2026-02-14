@@ -1,19 +1,26 @@
 from ultralytics import YOLO
 from PIL import Image
-
 from class_labels import CLASS_LABELS
 
 MODEL_PATH = "palmdetector.pt"
 
-# Load model ONCE at startup
-model = YOLO(MODEL_PATH)
+model = None  # DO NOT load at import time
+
+
+def get_model():
+    global model
+    if model is None:
+        model = YOLO(MODEL_PATH)
+    return model
 
 
 def analyze_image(image_path: str):
+    model_instance = get_model()
+
     image = Image.open(image_path).convert("RGB")
     width, height = image.size
 
-    results = model(image)[0]
+    results = model_instance(image)[0]
 
     detections = []
 
