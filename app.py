@@ -1,14 +1,12 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from inference_sdk import InferenceHTTPClient
 import shutil
 import uuid
 import os
-
-from model import analyze_image
-
+import tempfile
 app = FastAPI(title="Palm Analysis API")
 
-# Allow Android / web clients
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,10 +15,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 🔴 Replace with your own Roboflow API key
+CLIENT = InferenceHTTPClient(
+    api_url="https://serverless.roboflow.com",
+    api_key="W5Oc0aWD7MFYfm22hoIs"
+)
+
+MODEL_ID = "palm-lines-recognition-azgh0/5"
+
 
 @app.get("/")
 def health_check():
     return {"status": "ok"}
+
+
 
 
 @app.post("/analyze-palm")
@@ -28,24 +36,33 @@ async def analyze_palm(file: UploadFile = File(...)):
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Invalid image file")
 
-    temp_filename = f"/tmp/{uuid.uuid4().hex}.jpg"
+    temp_filename = None
 
     try:
-        with open(temp_filename, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+            temp_filename = tmp.name
+            shutil.copyfileobj(file.file, tmp)
 
-        points = analyze_image(temp_filename)
+        result = CLIENT.infer(temp_filename, model_id=MODEL_ID)
 
-        return {
-            "lines": points
-        }
+        predictions = result.get("predictions", [])
+
+        formatted = []
+        for p in predictions:
+            formatted.append({
+                "label": p.get("class"),
+                "confidence": round(p.get("confidence", 0), 2),
+                "x": p.get("x"),
+                "y": p.get("y"),
+                "width": p.get("width"),
+                "height": p.get("height")
+            })
+
+        return {"lines": formatted}
 
     except Exception as e:
-        import traceback
-        print("FULL ERROR:")
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail=str(e))
 
     finally:
-        if os.path.exists(temp_filename):
+        if temp_filename and os.path.exists(temp_filename):
             os.remove(temp_filename)
