@@ -86,6 +86,10 @@ async def analyze_palm(file: UploadFile = File(...)):
 # FUTURE PREDICTION ENDPOINT
 # ===========================
 
+from fastapi import Form
+import json
+import re
+
 @app.post("/future-prediction")
 async def future_prediction(
     date_of_birth: str = Form(...),
@@ -94,28 +98,28 @@ async def future_prediction(
     try:
 
         prompt = f"""
-        You are a professional life advisor.
-
         Based on:
         Date of Birth: {date_of_birth}
         Birth Place: {birth_place}
 
-        Generate a structured response in JSON format with these fields:
-        - personality
-        - career
-        - love
-        - strengths
-        - next_three_years
+        Return STRICT JSON only with this structure:
+        {{
+            "personality": "...",
+            "career": "...",
+            "love": "...",
+            "strengths": "...",
+            "next_three_years": "..."
+        }}
 
-        Keep tone realistic, practical and motivating.
-        Do not mention astrology explicitly.
+        Do NOT add explanations.
+        Do NOT add extra text.
+        Only valid JSON.
         """
 
         response = groq_client.chat.completions.create(
-           model="llama-3.1-8b-instant",
-
+            model="llama3-70b-8192",
             messages=[
-                {"role": "system", "content": "You are an intelligent life prediction assistant."},
+                {"role": "system", "content": "Return only valid JSON."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7
@@ -123,9 +127,14 @@ async def future_prediction(
 
         content = response.choices[0].message.content
 
-        return {
-            "prediction": content
-        }
+        # 🔥 Extract JSON safely
+        match = re.search(r"\{.*\}", content, re.DOTALL)
+        if not match:
+            raise Exception("Model did not return valid JSON")
+
+        json_data = json.loads(match.group())
+
+        return json_data   # ✅ RETURN ACTUAL JSON
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
