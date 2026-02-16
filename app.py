@@ -112,7 +112,7 @@ async def future_prediction(
         """
 
         response = groq_client.chat.completions.create(
-           model="llama-3.1-70b-versatile",
+           model="llama-3.1-8b-instant",
 
             messages=[
                 {"role": "system", "content": "You are an intelligent life prediction assistant."},
