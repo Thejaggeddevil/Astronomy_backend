@@ -6,6 +6,7 @@ import shutil
 import uuid
 import os
 import tempfile
+import json
 
 app = FastAPI(title="Palm Analysis API")
 
@@ -102,24 +103,25 @@ async def future_prediction(
         Date of Birth: {date_of_birth}
         Birth Place: {birth_place}
 
-        Return STRICT JSON only with this structure:
-        {{
-            "personality": "...",
-            "career": "...",
-            "love": "...",
-            "strengths": "...",
-            "next_three_years": "..."
-        }}
+        Return ONLY valid JSON.
+        Do not include markdown.
+        Do not include explanation.
+        Do not wrap in code block.
 
-        Do NOT add explanations.
-        Do NOT add extra text.
-        Only valid JSON.
+        Format:
+        {{
+            "personality": "string",
+            "career": "string",
+            "love": "string",
+            "strengths": "string",
+            "next_three_years": "string"
+        }}
         """
 
         response = groq_client.chat.completions.create(
-            model="llama3-70b-8192",
+            model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": "Return only valid JSON."},
+                {"role": "system", "content": "Return only raw JSON. No markdown."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7
@@ -127,14 +129,10 @@ async def future_prediction(
 
         content = response.choices[0].message.content
 
-        # 🔥 Extract JSON safely
-        match = re.search(r"\{.*\}", content, re.DOTALL)
-        if not match:
-            raise Exception("Model did not return valid JSON")
+        # CLEAN markdown if model still adds it
+        content = content.replace("```json", "").replace("```", "").strip()
 
-        json_data = json.loads(match.group())
-
-        return json_data   # ✅ RETURN ACTUAL JSON
+        return json.loads(content)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
